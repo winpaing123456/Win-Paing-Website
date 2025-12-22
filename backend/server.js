@@ -10,7 +10,14 @@ import multer from 'multer';
 
 import pkg from 'pg';
 import dotenv from 'dotenv';
-dotenv.config();
+import nodemailer from 'nodemailer';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load environment variables from .env file
+dotenv.config({ path: path.join(__dirname, '.env') });
+
 const { Pool } = pkg;
 const pool = new Pool({
     user: process.env.PGUSER || 'postgres',
@@ -22,10 +29,6 @@ const pool = new Pool({
 pool.on('connect', () => {
     console.log('✅ PostgreSQL connected');
 });
-
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // Create the Express app
 
@@ -66,6 +69,35 @@ if (!fs.existsSync(projectsFolder)) {
 
 // Serve uploaded images
 app.use('/uploads', express.static('uploads'));
+
+// Configure nodemailer transporter
+const smtpUser = process.env.SMTP_USER;
+const smtpPass = process.env.SMTP_PASS;
+
+if (!smtpUser || !smtpPass) {
+    console.warn('⚠️  SMTP credentials not found in environment variables');
+    console.warn('   Make sure SMTP_USER and SMTP_PASS are set in .env file');
+}
+
+const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+    auth: {
+        user: smtpUser,
+        pass: smtpPass,
+    },
+});
+
+// Verify transporter configuration
+transporter.verify((error, success) => {
+    if (error) {
+        console.error('❌ Email transporter error:', error.message);
+        console.warn('⚠️  Email functionality may not work. Please check your SMTP configuration in .env');
+    } else {
+        console.log('✅ Email transporter ready');
+    }
+});
 
 // Set up API routes
 
@@ -124,6 +156,72 @@ app.delete('/api/projects/:id', async (req, res) => {
     } catch (err) {
         console.error('Error deleting project:', err);
         res.status(500).json({ error: 'Failed to delete project' });
+    }
+});
+
+// POST /api/contact/send - send email from contact form
+app.post('/api/contact/send', async (req, res) => {
+    const { name, email, message } = req.body;
+
+    // Validate required fields
+    if (!name || !email || !message) {
+        return res.status(400).json({ error: 'Name, email, and message are required' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ error: 'Invalid email address' });
+    }
+
+    // Validate field lengths
+    if (name.trim().length < 2) {
+        return res.status(400).json({ error: 'Name must be at least 2 characters' });
+    }
+    if (message.trim().length < 10) {
+        return res.status(400).json({ error: 'Message must be at least 10 characters' });
+    }
+
+    // Check if email configuration is set
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+        console.error('Email configuration missing: SMTP_USER and SMTP_PASS must be set in .env');
+        return res.status(500).json({ error: 'Email service is not configured' });
+    }
+
+    // Recipient email (where you want to receive contact form messages)
+    const recipientEmail = process.env.CONTACT_EMAIL || process.env.SMTP_USER;
+
+    try {
+        // Email options
+        const mailOptions = {
+            from: `"${name}" <${process.env.SMTP_USER}>`,
+            replyTo: email,
+            to: recipientEmail,
+            subject: `Contact Form Message from ${name}`,
+            text: `New Contact Form Message
+
+From: ${name}
+Email: ${email}
+Date: ${new Date().toLocaleString()}
+
+Message:
+${message}`
+        };
+
+        // Send email
+        const info = await transporter.sendMail(mailOptions);
+        console.log('✅ Contact form email sent:', info.messageId);
+
+        res.json({ 
+            success: true, 
+            message: 'Message sent successfully',
+            messageId: info.messageId
+        });
+    } catch (err) {
+        console.error('Error sending contact form email:', err);
+        res.status(500).json({ 
+            error: 'Failed to send message. Please try again later.' 
+        });
     }
 });
 

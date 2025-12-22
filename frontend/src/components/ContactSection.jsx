@@ -26,28 +26,50 @@ export default function ContactSection() {
   async function handleSubmit(e) {
     e.preventDefault();
     const newErrors = validateForm();
-    if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
+    if (Object.keys(newErrors).length > 0) { 
+      setErrors(newErrors); 
+      return; 
+    }
 
     setSending(true);
     setErrors({});
 
     try {
+      // Prepare data to send to backend email route
+      const contactData = {
+        name: form.name.trim(),
+        email: form.email.trim(),
+        message: form.message.trim()
+      };
+
+      // Send to backend email route
       const res = await fetch(`${API_BASE}/api/contact/send`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        headers: { 
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify(contactData),
       });
 
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json?.error || 'Failed to send');
+      const data = await res.json().catch(() => ({}));
+      
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to send message');
+      }
 
+      // Success - reset form and show success message
       setSubmitted(true);
       setForm({ name: '', email: '', message: '' });
 
+      // Hide success message after 5 seconds
       setTimeout(() => setSubmitted(false), 5000);
     } catch (err) {
-      console.error('Send error:', err);
-      setErrors({ form: typeof err === 'string' ? err : (err.message || 'Failed to send message. Try again later.') });
+      console.error('Contact form send error:', err);
+      setErrors({ 
+        form: typeof err === 'string' 
+          ? err 
+          : (err.message || 'Failed to send message. Please try again later.') 
+      });
     } finally {
       setSending(false);
     }
