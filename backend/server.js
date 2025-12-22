@@ -65,6 +65,26 @@ app.get('/api/projects', async (req, res) => {
 });
 
 
+// POST /api/projects - create a new project
+app.post('/api/projects', async (req, res) => {
+    const { title, description, tech_stack, image_url, repo_url, live_url } = req.body;
+    if (!title || !description) {
+        return res.status(400).json({ error: 'Title and description are required' });
+    }
+    try {
+        const result = await pool.query(
+            `INSERT INTO projects (title, description, tech_stack, live_url, repo_url, image_url, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW()) RETURNING *`,
+            [title, description, tech_stack || null, live_url || null, repo_url || null, image_url || null]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        console.error('Error creating project:', err);
+        res.status(500).json({ error: 'Failed to create project' });
+    }
+});
+
+
 // Start the server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
