@@ -2,10 +2,6 @@
 import express from 'express';
 import cors from 'cors';
 
-
-import blogRoutes from './routes/blogRoutes.js';
-import contactRoutes from './routes/contactRoutes.js';
-import projectRoutes from './routes/projectRoutes.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -17,7 +13,7 @@ const { Pool } = pkg;
 const pool = new Pool({
     user: process.env.PGUSER || 'postgres',
     host: process.env.PGHOST || 'localhost',
-    database: process.env.PGDATABASE || 'Personal_Web',
+    database: process.env.PGDATABASE || 'Personal Web',
     password: process.env.PGPASSWORD || 'wipaing123',
     port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
 });
@@ -57,9 +53,17 @@ app.use('/uploads', express.static('uploads'));
 
 // Set up API routes
 
-app.use('/api/blog', blogRoutes);
-app.use('/api/contact', contactRoutes);
-app.use('/api/projects', projectRoutes);
+// GET /api/projects - fetch all projects
+app.get('/api/projects', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM projects ORDER BY created_at DESC');
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching projects:', err);
+        res.status(500).json({ error: 'Failed to fetch projects' });
+    }
+});
+
 
 // Start the server
 const PORT = process.env.PORT || 5000;
