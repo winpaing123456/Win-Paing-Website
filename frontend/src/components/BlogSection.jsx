@@ -141,31 +141,25 @@ export default function BlogSection() {
       <h2 className="section-heading">Blog</h2>
 
       {/* Admin login form */}
-      <form style={{ margin: "20px" }} onSubmit={handleAdminLogin}>
-        <label htmlFor="admin-pass" className="form-label" style={{ display: "block", marginBottom: 6, fontSize: 16 }}>
-          Admin Password
-        </label>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <form className="admin-login" onSubmit={handleAdminLogin}>
+        <div className="admin-login-row">
+          <label htmlFor="admin-pass" className="form-label admin-label">Admin Password</label>
           <input
             id="admin-pass"
             name="admin-pass"
             type={showAdminPassword ? "text" : "password"}
-            placeholder="Enter admin password..."
-            className="form-input"
-            style={{ flex: 1 }}
+            placeholder="Enter admin password"
+            className="form-input admin-input"
             autoComplete="off"
             value={adminPass}
             onChange={(e) => setAdminPass(e.target.value)}
           />
-          <button type="button" className="btn-secondary" onClick={() => setShowAdminPassword((s) => !s)}>
+          <button type="button" className="btn-toggle" onClick={() => setShowAdminPassword((s) => !s)}>
             {showAdminPassword ? "Hide" : "Show"}
           </button>
-          <button type="submit" className="btn-secondary" aria-label="Enter admin">
-            <i className="ri-key-line" aria-hidden="true" style={{ marginRight: 6 }}></i>
-            Enter
-          </button>
+          <button type="submit" className="btn-login">Login</button>
         </div>
-        {errors.form && <div className="form-error" style={{ marginTop: 8 }}>{errors.form}</div>}
+        {errors.form && <div className="form-error admin-error">{errors.form}</div>}
       </form>
 
       {/* Main blog box */}
