@@ -165,6 +165,18 @@ app.delete('/api/projects/:id', async (req, res) => {
         if (result.rowCount === 0) {
             return res.status(404).json({ error: 'Project not found' });
         }
+        
+        // Delete associated image file if it exists
+        const deletedProject = result.rows[0];
+        if (deletedProject.image_url) {
+            // Remove leading slash and construct full path
+            const imagePath = path.join(__dirname, deletedProject.image_url);
+            if (fs.existsSync(imagePath)) {
+                fs.unlinkSync(imagePath);
+                console.log('✅ Deleted project image:', imagePath);
+            }
+        }
+        
         res.json({ success: true, deleted: result.rows[0] });
     } catch (err) {
         console.error('Error deleting project:', err);
@@ -220,6 +232,18 @@ app.delete('/api/blogs/:id', async (req, res) => {
         if (result.rowCount === 0) {
             return res.status(404).json({ error: 'Blog not found' });
         }
+        
+        // Delete associated image file if it exists
+        const deletedBlog = result.rows[0];
+        if (deletedBlog.image) {
+            // Remove leading slash and construct full path
+            const imagePath = path.join(__dirname, deletedBlog.image);
+            if (fs.existsSync(imagePath)) {
+                fs.unlinkSync(imagePath);
+                console.log('✅ Deleted blog image:', imagePath);
+            }
+        }
+        
         res.json({ success: true, deleted: result.rows[0] });
     } catch (err) {
         console.error('Error deleting blog:', err);
