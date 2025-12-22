@@ -1,7 +1,7 @@
-
 // Import required modules
 import express from 'express';
 import cors from 'cors';
+
 
 import blogRoutes from './routes/blogRoutes.js';
 import contactRoutes from './routes/contactRoutes.js';
@@ -10,12 +10,32 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+import pkg from 'pg';
+import dotenv from 'dotenv';
+dotenv.config();
+const { Pool } = pkg;
+const pool = new Pool({
+    user: process.env.PGUSER || 'postgres',
+    host: process.env.PGHOST || 'localhost',
+    database: process.env.PGDATABASE || 'Personal_Web',
+    password: process.env.PGPASSWORD || 'wipaing123',
+    port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
+});
+pool.on('connect', () => {
+    console.log('✅ PostgreSQL connected');
+});
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Create the Express app
+
 const app = express();
+// Health check route
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', message: 'Backend is healthy' });
+});
 
 // Enable CORS and JSON body parsing
 app.use(cors());
