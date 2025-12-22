@@ -85,6 +85,25 @@ app.post('/api/projects', async (req, res) => {
 });
 
 
+
+// DELETE /api/projects/:id - delete a project by id
+app.delete('/api/projects/:id', async (req, res) => {
+    const { id } = req.params;
+    if (!id) {
+        return res.status(400).json({ error: 'Project id is required' });
+    }
+    try {
+        const result = await pool.query('DELETE FROM projects WHERE id = $1 RETURNING *', [id]);
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+        res.json({ success: true, deleted: result.rows[0] });
+    } catch (err) {
+        console.error('Error deleting project:', err);
+        res.status(500).json({ error: 'Failed to delete project' });
+    }
+});
+
 // Start the server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

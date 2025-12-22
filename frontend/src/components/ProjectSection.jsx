@@ -113,10 +113,21 @@ export default function ProjectSection() {
       fd.append("repo_url", form.repo_url);
       if (form.image) fd.append("image", form.image);
 
-      const res = await fetch(`${API_BASE}/api/projects/create`, {
+      // Use the correct backend route: /api/projects (POST)
+      const res = await fetch(`${API_BASE}/api/projects`, {
         method: "POST",
-        body: fd,
-        headers: { "x-admin-password": password },
+        body: JSON.stringify({
+          title: form.title,
+          description: form.description,
+          tech_stack: form.tech_stack,
+          live_url: form.live_url,
+          repo_url: form.repo_url,
+          image_url: null // image upload not supported in backend yet
+        }),
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-password": password
+        },
       });
 
       if (res.ok) {
@@ -158,15 +169,21 @@ export default function ProjectSection() {
     try {
       const res = await fetch(`${API_BASE}/api/projects/${id}`, {
         method: "DELETE",
-        headers: { "x-admin-password": password },
+        headers: {
+          "x-admin-password": password
+        },
       });
       if (res.ok) {
         setProjects((prev) => prev.filter((p) => p.id !== id));
         setPendingDelete(null);
         return;
+      } else {
+        // Optionally handle error response from backend
+        const errData = await res.json().catch(() => ({}));
+        setErrors({ delete: errData.error || "Failed to delete project" });
       }
     } catch (err) {
-      // fallback below
+      setErrors({ delete: "Network error deleting project" });
     }
     setProjects((prev) => prev.filter((p) => p.id !== id));
     setPendingDelete(null);
