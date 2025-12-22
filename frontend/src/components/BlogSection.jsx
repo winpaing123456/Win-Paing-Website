@@ -142,7 +142,7 @@ export default function BlogSection() {
 
       {/* Admin login form */}
       <form style={{ margin: "20px" }} onSubmit={handleAdminLogin}>
-        <label htmlFor="admin-pass" className="form-label" style={{ display: "block", marginBottom: 6 }}>
+        <label htmlFor="admin-pass" className="form-label" style={{ display: "block", marginBottom: 6, fontSize: 16 }}>
           Admin Password
         </label>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
