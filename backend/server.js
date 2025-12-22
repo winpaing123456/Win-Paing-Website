@@ -43,6 +43,17 @@ app.use(cors());
 
 app.use(express.json());
 
+// Make sure uploads folders exist (for blog and projects images)
+const uploadsRoot = path.join(__dirname, 'uploads');
+const blogFolder = path.join(uploadsRoot, 'blog');
+const projectsFolder = path.join(uploadsRoot, 'projects');
+if (!fs.existsSync(blogFolder)) {
+    fs.mkdirSync(blogFolder, { recursive: true });
+}
+if (!fs.existsSync(projectsFolder)) {
+    fs.mkdirSync(projectsFolder, { recursive: true });
+}
+
 // Multer setup for project images
 const projectStorage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -56,16 +67,18 @@ const projectStorage = multer.diskStorage({
 });
 const uploadProjectImage = multer({ storage: projectStorage });
 
-// Make sure uploads folders exist (for blog and projects images)
-const uploadsRoot = path.join(__dirname, 'uploads');
-const blogFolder = path.join(uploadsRoot, 'blog');
-const projectsFolder = path.join(uploadsRoot, 'projects');
-if (!fs.existsSync(blogFolder)) {
-    fs.mkdirSync(blogFolder, { recursive: true });
-}
-if (!fs.existsSync(projectsFolder)) {
-    fs.mkdirSync(projectsFolder, { recursive: true });
-}
+// Multer setup for blog images
+const blogStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, blogFolder);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        cb(null, 'blog-' + uniqueSuffix + ext);
+    }
+});
+const uploadBlogImage = multer({ storage: blogStorage });
 
 // Serve uploaded images
 app.use('/uploads', express.static('uploads'));
@@ -156,6 +169,61 @@ app.delete('/api/projects/:id', async (req, res) => {
     } catch (err) {
         console.error('Error deleting project:', err);
         res.status(500).json({ error: 'Failed to delete project' });
+    }
+});
+
+// GET /api/blogs - fetch all blogs
+app.get('/api/blogs', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM blogs ORDER BY created_at DESC');
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching blogs:', err);
+        res.status(500).json({ error: 'Failed to fetch blogs' });
+    }
+});
+
+// POST /api/blogs - create a new blog (with optional image upload)
+app.post('/api/blogs', uploadBlogImage.single('image'), async (req, res) => {
+    // If sent as multipart/form-data, fields are in req.body, file in req.file
+    const { title, content } = req.body;
+    let image = null;
+    if (req.file) {
+        image = `/uploads/blog/${req.file.filename}`;
+    } else if (req.body.image) {
+        image = req.body.image;
+    }
+    if (!title || !content) {
+        return res.status(400).json({ error: 'Title and content are required' });
+    }
+    try {
+        const result = await pool.query(
+            `INSERT INTO blogs (title, content, image, created_at)
+             VALUES ($1, $2, $3, NOW()) RETURNING *`,
+            [title, content, image || null]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        console.error('Error creating blog:', err);
+        res.status(500).json({ error: 'Failed to create blog' });
+    }
+});
+
+// DELETE /api/blogs/:id - delete a blog by id
+app.delete('/api/blogs/:id', async (req, res) => {
+    const { id } = req.params;
+    if (!id) {
+        return res.status(400).json({ error: 'Blog id is required' });
+    }
+    try {
+        const result = await pool.query('DELETE FROM blogs WHERE id = $1 RETURNING *', [id]);
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: 'Blog not found' });
+        }
+        res.json({ success: true, deleted: result.rows[0] });
+    } catch (err) {
+        console.error('Error deleting blog:', err);
+        res.status(500).json({ error: 'Failed to delete blog' });
     }
 });
 

@@ -25,7 +25,7 @@ function toPost(post) {
     id: post.id,
     title: post.title,
     content: post.content,
-    imagePreview: post.image ? `${API_BASE}/uploads/${post.image}` : null,
+    imagePreview: post.image ? `${API_BASE}${post.image}` : null,
     createdAt: formatDate(post.created_at),
   };
 }
@@ -41,7 +41,7 @@ export default function BlogSection() {
 
   // Load blog posts from server
   useEffect(() => {
-    fetch(`${API_BASE}/api/blog`)
+    fetch(`${API_BASE}/api/blogs`)
       .then((res) => res.json())
       .then((data) => setPosts(data.map(toPost)))
       .catch((err) => console.error(err));
@@ -85,32 +85,33 @@ export default function BlogSection() {
       fd.append("title", form.title.trim());
       fd.append("content", form.content.trim());
       if (form.image) fd.append("image", form.image);
-      const res = await fetch(`${API_BASE}/api/blog/create`, {
+      const res = await fetch(`${API_BASE}/api/blogs`, {
         method: "POST",
         body: fd,
-        headers: { "x-admin-password": adminPass },
       });
       const body = await res.json();
-      if (!res.ok || !body.success) throw new Error(body.error || "Failed to create post");
-      setPosts((prev) => [toPost(body.blog), ...prev]);
+      if (!res.ok) throw new Error(body.error || "Failed to create post");
+      setPosts((prev) => [toPost(body), ...prev]);
       setForm({ title: "", content: "", image: null, imagePreview: null });
       setErrors({});
     } catch (err) {
-      setErrors({ form: "Failed to publish post" });
+      setErrors({ form: err.message || "Failed to publish post" });
     }
   }
 
   // Delete a blog post
   async function handleDelete(id) {
     try {
-      const res = await fetch(`${API_BASE}/api/blog/${id}`, {
+      const res = await fetch(`${API_BASE}/api/blogs/${id}`, {
         method: "DELETE",
-        headers: { "x-admin-password": adminPass },
       });
-      if (!res.ok) throw new Error("Failed to delete");
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.error || "Failed to delete");
+      }
       setPosts((prev) => prev.filter((post) => post.id !== id));
     } catch (err) {
-      // Optionally show error
+      setErrors({ form: err.message || "Failed to delete post" });
     }
   }
 
