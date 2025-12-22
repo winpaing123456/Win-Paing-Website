@@ -187,9 +187,9 @@ export default function ProjectSection() {
 
       <div className="project-box">
         {/* Admin login form */}
-        <form className="admin-login" onSubmit={handleAdminSubmit} style={{ maxWidth: 500, marginBottom: 18 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
-            <label className="form-label" htmlFor="admin-pass" style={{ fontWeight: 600, fontSize: 16, letterSpacing: 0.2, whiteSpace: 'nowrap' }}>Admin Password</label>
+        <form className="admin-login" onSubmit={handleAdminSubmit}>
+          <div className="admin-login-row">
+            <label className="form-label admin-label" htmlFor="admin-pass">Admin Password</label>
             <input
               id="admin-pass"
               type={showPassword ? "text" : "password"}
@@ -197,20 +197,21 @@ export default function ProjectSection() {
               placeholder="Enter admin password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="form-input"
-              style={{ height: 40, fontSize: 15, flex: 1, marginRight: 0 }}
+              className="form-input admin-input"
             />
-            <button type="button" className="btn-secondary" onClick={() => setShowPassword((s) => !s)} style={{ padding: '8px 24px', fontWeight: 600, fontSize: 15 }}>{showPassword ? 'Hide' : 'Show'}</button>
-            <button type="submit" className="btn-secondary" style={{ padding: '8px 24px', fontWeight: 600, fontSize: 15 }}>Login</button>
-            {isAdmin && <span style={{ color: "#6ee7b7", marginLeft: 10, fontWeight: 600 }}>Admin</span>}
+            <button type="button" className="btn-toggle" onClick={() => setShowPassword((s) => !s)}>
+              {showPassword ? 'Hide' : 'Show'}
+            </button>
+            <button type="submit" className="btn-login">Login</button>
+            {isAdmin && <span className="admin-badge">✓ Admin</span>}
           </div>
-          {errors.pass && <div className="form-error" style={{ marginTop: 8 }}>{errors.pass}</div>}
+          {errors.pass && <div className="form-error admin-error">{errors.pass}</div>}
         </form>
 
         {/* Admin project form */}
         {isAdmin && (
-          <form className="project-admin card" onSubmit={handleAddProject} style={{ marginTop: 16 }}>
-            <h3>Create Project</h3>
+          <form className="project-admin card" onSubmit={handleAddProject}>
+            <h3 className="project-form-title">Create Project</h3>
             <div className="form-grid">
               <input name="title" className="form-input" placeholder="Title" value={form.title} onChange={handleChange} required />
               <input name="tech_stack" className="form-input" placeholder="Tech stack (comma)" value={form.tech_stack} onChange={handleChange} required />
@@ -219,15 +220,15 @@ export default function ProjectSection() {
             </div>
             <textarea name="description" className="form-input form-textarea" placeholder="Short description" value={form.description} onChange={handleChange} required />
 
-            <label className="upload-box">
-              {form.imagePreview ? <img src={form.imagePreview} alt="preview" style={{ maxWidth: 160, borderRadius: 8 }} /> : "Upload image"}
+            <label className="upload-box project-upload">
+              {form.imagePreview ? <img src={form.imagePreview} alt="preview" className="upload-preview" /> : <span className="upload-text">📷 Upload image</span>}
               <input type="file" accept="image/*" onChange={handleImageChange} required hidden />
             </label>
 
-            <div style={{ marginTop: 10 }}>
-              <button type="submit" className="btn-primary">Create</button>
-              <button type="button" className="btn-secondary" onClick={() => setForm({ title: "", description: "", tech_stack: "", live_url: "", repo_url: "", image: null, imagePreview: null })} style={{ marginLeft: 8 }}>Clear</button>
-              {errors.form && <div className="form-error">{errors.form}</div>}
+            <div className="project-form-actions">
+              <button type="submit" className="btn-primary project-create-btn">Create</button>
+              <button type="button" className="btn-secondary project-clear-btn" onClick={() => setForm({ title: "", description: "", tech_stack: "", live_url: "", repo_url: "", image: null, imagePreview: null })}>Clear</button>
+              {errors.form && <div className="form-error project-form-error">{errors.form}</div>}
             </div>
           </form>
         )}
@@ -244,18 +245,18 @@ export default function ProjectSection() {
                   <h4 className="project-title-sm">{p.title}</h4>
                   <p className="project-desc">{p.description}</p>
                   <div className="project-meta">
-                    <span>{p.tech_stack}</span>
-                    <div>
-                      {p.live_url && <a className="btn-small" href={p.live_url} target="_blank" rel="noreferrer">View</a>}
-                      {p.repo_url && <a className="btn-small" style={{ marginLeft: 8 }} href={p.repo_url} target="_blank" rel="noreferrer">Repo</a>}
+                    <span className="project-tech">{p.tech_stack}</span>
+                    <div className="project-actions">
+                      {p.live_url && <a className="btn-small btn-view" href={p.live_url} target="_blank" rel="noreferrer">View</a>}
+                      {p.repo_url && <a className="btn-small btn-repo" href={p.repo_url} target="_blank" rel="noreferrer">Repo</a>}
                       {isAdmin && (
                         pendingDelete === p.id ? (
-                          <span>
-                            <button className="btn-small" onClick={() => handleDeleteConfirm(p.id)}>Confirm</button>
-                            <button className="btn-small" style={{ marginLeft: 8 }} onClick={cancelDelete}>Cancel</button>
+                          <span className="delete-confirm-group">
+                            <button className="btn-small btn-confirm" onClick={() => handleDeleteConfirm(p.id)}>Confirm</button>
+                            <button className="btn-small btn-cancel" onClick={cancelDelete}>Cancel</button>
                           </span>
                         ) : (
-                          <button className="delete-btn" style={{ marginLeft: 8 }} onClick={() => requestDelete(p.id)}>Delete</button>
+                          <button className="delete-btn project-delete-btn" onClick={() => requestDelete(p.id)}>Delete</button>
                         )
                       )}
                     </div>
