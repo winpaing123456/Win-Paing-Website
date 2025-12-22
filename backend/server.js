@@ -280,6 +280,20 @@ ${message}`
         const info = await transporter.sendMail(mailOptions);
         console.log('✅ Contact form email sent:', info.messageId);
 
+        // Save contact form submission to database
+        try {
+            const dbResult = await pool.query(
+                `INSERT INTO contact (name, email, message, created_at)
+                 VALUES ($1, $2, $3, NOW()) RETURNING *`,
+                [name.trim(), email.trim(), message.trim()]
+            );
+            console.log('✅ Contact form saved to database:', dbResult.rows[0].id);
+        } catch (dbErr) {
+            // Log database error but don't fail the request since email was sent
+            console.error('⚠️  Error saving contact form to database:', dbErr);
+            console.warn('   Email was sent successfully, but database save failed');
+        }
+
         res.json({ 
             success: true, 
             message: 'Message sent successfully',
