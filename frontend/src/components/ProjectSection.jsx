@@ -113,19 +113,10 @@ export default function ProjectSection() {
       fd.append("repo_url", form.repo_url);
       if (form.image) fd.append("image", form.image);
 
-      // Use the correct backend route: /api/projects (POST)
       const res = await fetch(`${API_BASE}/api/projects`, {
         method: "POST",
-        body: JSON.stringify({
-          title: form.title,
-          description: form.description,
-          tech_stack: form.tech_stack,
-          live_url: form.live_url,
-          repo_url: form.repo_url,
-          image_url: null // image upload not supported in backend yet
-        }),
+        body: fd,
         headers: {
-          "Content-Type": "application/json",
           "x-admin-password": password
         },
       });
@@ -221,16 +212,16 @@ export default function ProjectSection() {
           <form className="project-admin card" onSubmit={handleAddProject} style={{ marginTop: 16 }}>
             <h3>Create Project</h3>
             <div className="form-grid">
-              <input name="title" className="form-input" placeholder="Title" value={form.title} onChange={handleChange} />
-              <input name="tech_stack" className="form-input" placeholder="Tech stack (comma)" value={form.tech_stack} onChange={handleChange} />
-              <input name="live_url" className="form-input" placeholder="Live URL" value={form.live_url} onChange={handleChange} />
-              <input name="repo_url" className="form-input" placeholder="Repo URL" value={form.repo_url} onChange={handleChange} />
+              <input name="title" className="form-input" placeholder="Title" value={form.title} onChange={handleChange} required />
+              <input name="tech_stack" className="form-input" placeholder="Tech stack (comma)" value={form.tech_stack} onChange={handleChange} required />
+              <input name="live_url" className="form-input" placeholder="Live URL" value={form.live_url} onChange={handleChange} required />
+              <input name="repo_url" className="form-input" placeholder="Repo URL" value={form.repo_url} onChange={handleChange} required />
             </div>
-            <textarea name="description" className="form-input form-textarea" placeholder="Short description" value={form.description} onChange={handleChange} />
+            <textarea name="description" className="form-input form-textarea" placeholder="Short description" value={form.description} onChange={handleChange} required />
 
             <label className="upload-box">
               {form.imagePreview ? <img src={form.imagePreview} alt="preview" style={{ maxWidth: 160, borderRadius: 8 }} /> : "Upload image"}
-              <input type="file" accept="image/*" onChange={handleImageChange} hidden />
+              <input type="file" accept="image/*" onChange={handleImageChange} required hidden />
             </label>
 
             <div style={{ marginTop: 10 }}>

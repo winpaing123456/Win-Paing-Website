@@ -2,9 +2,11 @@
 import express from 'express';
 import cors from 'cors';
 
+
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import multer from 'multer';
 
 import pkg from 'pg';
 import dotenv from 'dotenv';
@@ -35,7 +37,21 @@ app.get('/api/health', (req, res) => {
 
 // Enable CORS and JSON body parsing
 app.use(cors());
+
 app.use(express.json());
+
+// Multer setup for project images
+const projectStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, projectsFolder);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        cb(null, 'project-' + uniqueSuffix + ext);
+    }
+});
+const uploadProjectImage = multer({ storage: projectStorage });
 
 // Make sure uploads folders exist (for blog and projects images)
 const uploadsRoot = path.join(__dirname, 'uploads');
@@ -65,9 +81,16 @@ app.get('/api/projects', async (req, res) => {
 });
 
 
-// POST /api/projects - create a new project
-app.post('/api/projects', async (req, res) => {
-    const { title, description, tech_stack, image_url, repo_url, live_url } = req.body;
+// POST /api/projects - create a new project (with optional image upload)
+app.post('/api/projects', uploadProjectImage.single('image'), async (req, res) => {
+    // If sent as multipart/form-data, fields are in req.body, file in req.file
+    const { title, description, tech_stack, repo_url, live_url } = req.body;
+    let image_url = null;
+    if (req.file) {
+        image_url = `/uploads/projects/${req.file.filename}`;
+    } else if (req.body.image_url) {
+        image_url = req.body.image_url;
+    }
     if (!title || !description) {
         return res.status(400).json({ error: 'Title and description are required' });
     }
