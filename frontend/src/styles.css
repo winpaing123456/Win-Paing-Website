@@ -154,7 +154,7 @@ img {
   cursor: pointer;
 }
 
-.palette-dot:nth-child(1) {
+/*.palette-dot:nth-child(1) {
   background: #00e5ff;
 }
 .palette-dot:nth-child(2) {
@@ -166,7 +166,7 @@ img {
 .palette-dot:nth-child(4) {
   background: green;
 }
-
+*/
 
 .palette-dot--active {
   border-color: #ffffff;
@@ -195,7 +195,7 @@ img {
 }
 
 .hero .row {
-  max-width: 1200px;
+  max-width: 1000px;
   margin: 0 auto;
   width: 100%;
 }

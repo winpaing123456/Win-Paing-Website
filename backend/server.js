@@ -17,6 +17,7 @@ const __dirname = path.dirname(__filename);
 
 // Load environment variables from .env file
 dotenv.config({ path: path.join(__dirname, '.env') });
+const app = express();
 
 const { Pool } = pkg;
 const pool = new Pool({
@@ -30,13 +31,9 @@ pool.on('connect', () => {
     console.log('✅ PostgreSQL connected');
 });
 
-// Create the Express app
 
-const app = express();
-// Health check route
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', message: 'Backend is healthy' });
-});
+
+
 
 // Enable CORS and JSON body parsing
 app.use(cors());
