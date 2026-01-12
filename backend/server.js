@@ -48,7 +48,9 @@ pool.on('connect', () => {
 
 
 // Enable CORS and JSON body parsing
-app.use(cors());
+app.use(cors({
+    original: "https://frontend-1ltb.onrender.com"
+}));
 
 app.use(express.json());
 
