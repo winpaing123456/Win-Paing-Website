@@ -144,9 +144,18 @@ const transporter = nodemailer.createTransport({
     connectionTimeout: 30000, // 30 seconds to establish connection
     greetingTimeout: 30000,   // 30 seconds for greeting
     socketTimeout: 60000,     // 60 seconds for socket operations
-    // Enable debug for troubleshooting (set to true to see detailed logs)
-    debug: process.env.NODE_ENV === 'development',
-    logger: process.env.NODE_ENV === 'development',
+    // Enable debug for troubleshooting - enable in production to diagnose issues
+    debug: process.env.ENABLE_SMTP_DEBUG === 'true' || process.env.NODE_ENV === 'development',
+    logger: process.env.ENABLE_SMTP_DEBUG === 'true' || process.env.NODE_ENV === 'development',
+    // Additional options for better compatibility with cloud platforms
+    tls: {
+        // Do not fail on invalid certificates
+        rejectUnauthorized: false,
+        // Support older TLS versions if needed
+        minVersion: 'TLSv1.2'
+    },
+    // For port 587, require STARTTLS
+    requireTLS: parseInt(process.env.SMTP_PORT || '587') === 587,
 });
 
 // Verify transporter configuration
@@ -390,7 +399,12 @@ ${message}`
             message: err.message,
             code: err.code,
             command: err.command,
-            response: err.response
+            response: err.response,
+            responseCode: err.responseCode,
+            errno: err.errno,
+            syscall: err.syscall,
+            address: err.address,
+            port: err.port
         });
         
         let errorMessage = 'Failed to send message. Please try again later.';
@@ -399,10 +413,20 @@ ${message}`
             errorMessage = 'Email service is taking too long. Please try again later.';
         } else if (err.code === 'EAUTH' || err.responseCode === 535) {
             errorMessage = 'Email authentication failed. Please check SMTP credentials.';
-        } else if (err.code === 'ECONNECTION' || err.code === 'ETIMEDOUT') {
-            errorMessage = 'Cannot connect to email server. Please check your internet connection.';
+        } else if (err.code === 'ECONNECTION' || err.code === 'ETIMEDOUT' || err.code === 'ETIMEOUT') {
+            // More detailed error for connection issues
+            console.error('SMTP Connection failed. Common causes:');
+            console.error('  1. Gmail may be blocking connections from cloud providers');
+            console.error('  2. Render may be blocking outbound SMTP connections');
+            console.error('  3. Firewall or network restrictions');
+            console.error('  4. Incorrect SMTP_HOST, SMTP_PORT, or SMTP_SECURE settings');
+            errorMessage = `Cannot connect to email server (${err.code}). This may be due to network restrictions. Please try again or contact support.`;
+        } else if (err.code === 'ESOCKET' || err.code === 'EENOTFOUND') {
+            errorMessage = 'Cannot resolve email server address. Please check SMTP_HOST configuration.';
         } else if (err.response) {
             errorMessage = `Email service error: ${err.response}`;
+        } else if (err.message) {
+            errorMessage = `Email error: ${err.message}`;
         }
         
         res.status(500).json({ error: errorMessage });
