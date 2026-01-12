@@ -123,12 +123,13 @@ app.use('/uploads', (req, res, next) => {
 }, express.static('uploads'));
 
 // Configure nodemailer transporter
-const smtpUser = process.env.SMTP_USER;
-const smtpPass = process.env.SMTP_PASS;
+// Support both EMAIL_USER/EMAIL_PASS and SMTP_USER/SMTP_PASS for compatibility
+const smtpUser = process.env.EMAIL_USER || process.env.SMTP_USER;
+const smtpPass = process.env.EMAIL_PASS || process.env.SMTP_PASS;
 
 if (!smtpUser || !smtpPass) {
     console.warn('⚠️  SMTP credentials not found in environment variables');
-    console.warn('   Make sure SMTP_USER and SMTP_PASS are set in .env file');
+    console.warn('   Make sure EMAIL_USER/EMAIL_PASS or SMTP_USER/SMTP_PASS are set in .env file');
 }
 
 const transporter = nodemailer.createTransport({
@@ -330,18 +331,18 @@ app.post('/api/contact/send', async (req, res) => {
     }
 
     // Check if email configuration is set
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-        console.error('Email configuration missing: SMTP_USER and SMTP_PASS must be set in .env');
+    if (!smtpUser || !smtpPass) {
+        console.error('Email configuration missing: EMAIL_USER/EMAIL_PASS or SMTP_USER/SMTP_PASS must be set in .env');
         return res.status(500).json({ error: 'Email service is not configured' });
     }
 
     // Recipient email (where you want to receive contact form messages)
-    const recipientEmail = process.env.CONTACT_EMAIL || process.env.SMTP_USER;
+    const recipientEmail = process.env.CONTACT_EMAIL || smtpUser;
 
     try {
         // Email options
         const mailOptions = {
-            from: `"${name}" <${process.env.SMTP_USER}>`,
+            from: `"${name}" <${smtpUser}>`,
             replyTo: email,
             to: recipientEmail,
             subject: `Contact Form Message from ${name}`,

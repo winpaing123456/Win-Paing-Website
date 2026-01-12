@@ -86,10 +86,29 @@ export default function ContactSection() {
       };
 
       // Create AbortController for timeout
+      // Backend email timeout is 45s, so we need at least 50s to account for network + processing
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 50000); // 50 second timeout
 
       try {
+        // On Render free tier, services can spin down. Try to wake up backend first with health check
+        // This is a quick request that won't timeout the form submission
+        const healthController = new AbortController();
+        const healthTimeout = setTimeout(() => healthController.abort(), 5000); // 5 second max for health check
+        try {
+          await fetch(`${API_BASE}/api/health`, { 
+            method: 'GET',
+            signal: healthController.signal
+          }).catch(() => {
+            // Ignore health check errors, just try the main request
+          });
+          clearTimeout(healthTimeout);
+        } catch (healthError) {
+          clearTimeout(healthTimeout);
+          // Health check failed, but continue anyway
+          console.log('Health check skipped or failed, proceeding with contact form');
+        }
+
         // Send to backend email route
         const res = await fetch(`${API_BASE}/api/contact/send`, {
           method: 'POST',
@@ -131,7 +150,7 @@ export default function ContactSection() {
         }
         // Handle network errors specifically
         if (fetchError.message === 'Failed to fetch' || fetchError.name === 'TypeError') {
-          throw new Error(`Cannot connect to server. Please check that the backend is running at ${API_BASE}`);
+          throw new Error(`Cannot connect to server at ${API_BASE}. If using Render free tier, the backend may be spinning up (first request can take 30-60 seconds). Please try again.`);
         }
         throw fetchError;
       }
