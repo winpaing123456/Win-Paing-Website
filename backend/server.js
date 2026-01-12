@@ -15,18 +15,30 @@ import nodemailer from 'nodemailer';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+dotenv.config();
+const PORT = process.env.PORT || 5000;
+
+
 // Load environment variables from .env file
 dotenv.config({ path: path.join(__dirname, '.env') });
 const app = express();
 
 const { Pool } = pkg;
 const pool = new Pool({
-    user: process.env.PGUSER || 'postgres',
-    host: process.env.PGHOST || 'localhost',
-    database: process.env.PGDATABASE || postgres_db,
-    password: process.env.PGPASSWORD || 'wipaing123',
-    port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
+    connectionString: process.env.DATABASE_URL,
+    ssl: 
+        process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+    
 });
+
+// const pool = new Pool({
+//     user: process.env.PGUSER || 'postgres',
+//     host: process.env.PGHOST || 'localhost',
+//     database: process.env.PGDATABASE || postgres_db,
+//     password: process.env.PGPASSWORD || 'wipaing123',
+//     port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
+// });
+
 pool.on('connect', () => {
     console.log('✅ PostgreSQL connected');
 });
@@ -329,7 +341,6 @@ ${message}`
 });
 
 // Start the server
-const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log('Backend running at port ' + PORT);
 });
