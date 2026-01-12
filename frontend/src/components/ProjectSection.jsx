@@ -1,8 +1,31 @@
 
 import React, { useEffect, useState } from "react";
 
-// API base URL and admin password
-const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:5000";
+// Determine API base URL
+// In production on Render, set REACT_APP_API_BASE to your backend URL (e.g., https://your-backend.onrender.com)
+function getApiBase() {
+  if (process.env.REACT_APP_API_BASE) {
+    const apiBase = process.env.REACT_APP_API_BASE;
+    console.log('Using REACT_APP_API_BASE from environment:', apiBase);
+    return apiBase;
+  }
+  
+  // Auto-detect: if frontend is on Render, try to guess backend URL
+  if (window.location.hostname.includes('render.com')) {
+    // Try common Render backend URL pattern
+    // You should set REACT_APP_API_BASE in Render's environment variables instead
+    console.warn('⚠️ REACT_APP_API_BASE not set. Please set it in Render environment variables.');
+    console.warn('   Current location:', window.location.href);
+    console.warn('   Images may not load correctly without the correct backend URL.');
+  }
+  
+  const fallback = 'http://localhost:5000';
+  console.log('Using fallback API_BASE:', fallback);
+  return fallback; // Fallback for local development
+}
+
+const API_BASE = getApiBase();
+console.log('API_BASE initialized:', API_BASE);
 const ADMIN_PASS = process.env.REACT_APP_ADMIN_PASS || "winpaing";
 
 export default function ProjectSection() {
@@ -25,6 +48,26 @@ export default function ProjectSection() {
     imagePreview: null,
   });
 
+  // Helper function to construct image URL
+  function getImageUrl(imagePath) {
+    if (!imagePath) return null;
+    
+    // If imagePath already starts with http:// or https://, use it as-is
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    
+    // Otherwise, prepend API_BASE
+    // Ensure imagePath starts with / if it doesn't
+    const normalizedPath = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+    const fullUrl = `${API_BASE}${normalizedPath}`;
+    
+    // Log for debugging
+    console.log('Project Image URL constructed:', { imagePath, API_BASE, fullUrl });
+    
+    return fullUrl;
+  }
+
   // Load projects from backend or fallback to demo
   useEffect(() => {
     let mounted = true;
@@ -42,7 +85,7 @@ export default function ProjectSection() {
               tech_stack: p.tech_stack,
               live_url: p.live_url,
               repo_url: p.repo_url,
-              imagePreview: p.image_url ? `${API_BASE}${p.image_url}` : null,
+              imagePreview: getImageUrl(p.image_url),
             }))
           );
           return;
@@ -131,7 +174,7 @@ export default function ProjectSection() {
             tech_stack: created.tech_stack,
             live_url: created.live_url,
             repo_url: created.repo_url,
-            imagePreview: created.image_url ? `${API_BASE}${created.image_url}` : form.imagePreview,
+            imagePreview: getImageUrl(created.image_url) || form.imagePreview,
           },
           ...prev,
         ]);
@@ -240,7 +283,24 @@ export default function ProjectSection() {
           ) : (
             projects.map((p) => (
               <article key={p.id} className="project-card card">
-                {p.imagePreview && <div className="project-image"><img src={p.imagePreview} alt={p.title} /></div>}
+                {p.imagePreview && (
+                  <div className="project-image">
+                    <img 
+                      src={p.imagePreview} 
+                      alt={p.title}
+                      onError={(e) => {
+                        console.error('Failed to load project image:', {
+                          url: p.imagePreview,
+                          apiBase: API_BASE
+                        });
+                        e.target.style.display = 'none';
+                      }}
+                      onLoad={() => {
+                        console.log('Successfully loaded project image:', p.imagePreview);
+                      }}
+                    />
+                  </div>
+                )}
                 <div className="project-body">
                   <h4 className="project-title-sm">{p.title}</h4>
                   <p className="project-desc">{p.description}</p>

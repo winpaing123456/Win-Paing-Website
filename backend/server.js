@@ -114,8 +114,13 @@ const blogStorage = multer.diskStorage({
 });
 const uploadBlogImage = multer({ storage: blogStorage });
 
-// Serve uploaded images
-app.use('/uploads', express.static('uploads'));
+// Serve uploaded images with CORS headers
+app.use('/uploads', (req, res, next) => {
+    // Set CORS headers for static files
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET');
+    next();
+}, express.static('uploads'));
 
 // Configure nodemailer transporter
 const smtpUser = process.env.SMTP_USER;
@@ -134,6 +139,13 @@ const transporter = nodemailer.createTransport({
         user: smtpUser,
         pass: smtpPass,
     },
+    // Add connection timeout settings for better reliability
+    connectionTimeout: 30000, // 30 seconds to establish connection
+    greetingTimeout: 30000,   // 30 seconds for greeting
+    socketTimeout: 60000,     // 60 seconds for socket operations
+    // Enable debug for troubleshooting (set to true to see detailed logs)
+    debug: process.env.NODE_ENV === 'development',
+    logger: process.env.NODE_ENV === 'development',
 });
 
 // Verify transporter configuration
@@ -343,10 +355,10 @@ Message:
 ${message}`
         };
 
-        // Send email with timeout (20 seconds)
+        // Send email with timeout (45 seconds - Gmail can be slow)
         const emailPromise = transporter.sendMail(mailOptions);
         const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Email sending timed out')), 20000)
+            setTimeout(() => reject(new Error('Email sending timed out')), 45000)
         );
         
         const info = await Promise.race([emailPromise, timeoutPromise]);
@@ -373,9 +385,25 @@ ${message}`
         });
     } catch (err) {
         console.error('Error sending contact form email:', err);
-        const errorMessage = err.message === 'Email sending timed out' 
-            ? 'Email service is taking too long. Please try again later.'
-            : 'Failed to send message. Please try again later.';
+        console.error('Error details:', {
+            message: err.message,
+            code: err.code,
+            command: err.command,
+            response: err.response
+        });
+        
+        let errorMessage = 'Failed to send message. Please try again later.';
+        
+        if (err.message === 'Email sending timed out') {
+            errorMessage = 'Email service is taking too long. Please try again later.';
+        } else if (err.code === 'EAUTH' || err.responseCode === 535) {
+            errorMessage = 'Email authentication failed. Please check SMTP credentials.';
+        } else if (err.code === 'ECONNECTION' || err.code === 'ETIMEDOUT') {
+            errorMessage = 'Cannot connect to email server. Please check your internet connection.';
+        } else if (err.response) {
+            errorMessage = `Email service error: ${err.response}`;
+        }
+        
         res.status(500).json({ error: errorMessage });
     }
 });
