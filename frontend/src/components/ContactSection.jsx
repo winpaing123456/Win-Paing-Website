@@ -4,18 +4,34 @@ import React, { useState } from "react";
 // In production on Render, set REACT_APP_API_BASE to your backend URL (e.g., https://your-backend.onrender.com)
 // If not set, try to auto-detect based on current hostname
 function getApiBase() {
+  // First, check for explicit environment variable (required for production)
   if (process.env.REACT_APP_API_BASE) {
-    return process.env.REACT_APP_API_BASE;
+    const apiBase = process.env.REACT_APP_API_BASE;
+    console.log('✅ Using REACT_APP_API_BASE:', apiBase);
+    return apiBase;
   }
   
-  // Auto-detect: if frontend is on Render, backend might be on same domain pattern
-  if (window.location.hostname.includes('render.com')) {
-    // Try common Render backend URL pattern
-    // You should set REACT_APP_API_BASE in Render's environment variables instead
-    console.warn('REACT_APP_API_BASE not set. Please set it in Render environment variables.');
+  // Check if we're in production (not localhost)
+  const isProduction = window.location.hostname !== 'localhost' && 
+                       window.location.hostname !== '127.0.0.1' &&
+                       !window.location.hostname.startsWith('192.168.') &&
+                       !window.location.hostname.startsWith('10.') &&
+                       !window.location.hostname.startsWith('172.');
+  
+  if (isProduction) {
+    // In production without REACT_APP_API_BASE, we can't proceed
+    const errorMsg = 'REACT_APP_API_BASE environment variable is not set. Please set it in Render environment variables with your backend URL (e.g., https://your-backend.onrender.com)';
+    console.error('❌', errorMsg);
+    console.error('   Current location:', window.location.href);
+    // Still return a value to prevent crashes, but log the error
+    // The fetch will fail with a clear error message
+    return null; // Return null so we can detect and show a better error
   }
   
-  return 'http://localhost:5000'; // Fallback for local development
+  // Local development fallback
+  const fallback = 'http://localhost:5000';
+  console.log('🔧 Using local development API_BASE:', fallback);
+  return fallback;
 }
 
 const API_BASE = getApiBase();
@@ -51,6 +67,15 @@ export default function ContactSection() {
 
     setSending(true);
     setErrors({});
+
+    // Check if API_BASE is configured
+    if (!API_BASE) {
+      setErrors({ 
+        form: 'Backend API URL is not configured. Please set REACT_APP_API_BASE environment variable in Render with your backend URL (e.g., https://your-backend.onrender.com)' 
+      });
+      setSending(false);
+      return;
+    }
 
     try {
       // Prepare data to send to backend email route
@@ -90,7 +115,8 @@ export default function ContactSection() {
           throw new Error(errorMessage);
         }
 
-        const data = await res.json();
+        // Parse response (we don't need the data, just verify it's valid JSON)
+        await res.json();
 
         // Success - reset form and show success message
         setSubmitted(true);
