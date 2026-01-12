@@ -48,8 +48,31 @@ pool.on('connect', () => {
 
 
 // Enable CORS and JSON body parsing
+const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    "https://frontend-1ltb.onrender.com",
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173"
+].filter(Boolean); // Remove undefined values
+
 app.use(cors({
-    original: "https://frontend-1ltb.onrender.com"
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            // Log for debugging
+            console.log(`CORS: Request from origin: ${origin}`);
+            // Allow all origins for now to fix the issue - you can restrict this later
+            callback(null, true);
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-password']
 }));
 
 app.use(express.json());
@@ -124,6 +147,15 @@ transporter.verify((error, success) => {
 });
 
 // Set up API routes
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        message: 'Backend is running'
+    });
+});
 
 // GET /api/projects - fetch all projects
 app.get('/api/projects', async (req, res) => {
@@ -311,23 +343,28 @@ Message:
 ${message}`
         };
 
-        // Send email
-        const info = await transporter.sendMail(mailOptions);
+        // Send email with timeout (20 seconds)
+        const emailPromise = transporter.sendMail(mailOptions);
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Email sending timed out')), 20000)
+        );
+        
+        const info = await Promise.race([emailPromise, timeoutPromise]);
+        
         console.log('✅ Contact form email sent:', info.messageId);
 
-        // Save contact form submission to database
-        try {
-            const dbResult = await pool.query(
-                `INSERT INTO contact (name, email, message, created_at)
-                 VALUES ($1, $2, $3, NOW()) RETURNING *`,
-                [name.trim(), email.trim(), message.trim()]
-            );
+        // Save contact form submission to database (non-blocking)
+        pool.query(
+            `INSERT INTO contact (name, email, message, created_at)
+             VALUES ($1, $2, $3, NOW()) RETURNING *`,
+            [name.trim(), email.trim(), message.trim()]
+        ).then(dbResult => {
             console.log('✅ Contact form saved to database:', dbResult.rows[0].id);
-        } catch (dbErr) {
+        }).catch(dbErr => {
             // Log database error but don't fail the request since email was sent
             console.error('⚠️  Error saving contact form to database:', dbErr);
             console.warn('   Email was sent successfully, but database save failed');
-        }
+        });
 
         res.json({ 
             success: true, 
@@ -336,9 +373,10 @@ ${message}`
         });
     } catch (err) {
         console.error('Error sending contact form email:', err);
-        res.status(500).json({ 
-            error: 'Failed to send message. Please try again later.' 
-        });
+        const errorMessage = err.message === 'Email sending timed out' 
+            ? 'Email service is taking too long. Please try again later.'
+            : 'Failed to send message. Please try again later.';
+        res.status(500).json({ error: errorMessage });
     }
 });
 

@@ -1,6 +1,24 @@
 import React, { useState } from "react";
 
-const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:5000';
+// Determine API base URL
+// In production on Render, set REACT_APP_API_BASE to your backend URL (e.g., https://your-backend.onrender.com)
+// If not set, try to auto-detect based on current hostname
+function getApiBase() {
+  if (process.env.REACT_APP_API_BASE) {
+    return process.env.REACT_APP_API_BASE;
+  }
+  
+  // Auto-detect: if frontend is on Render, backend might be on same domain pattern
+  if (window.location.hostname.includes('render.com')) {
+    // Try common Render backend URL pattern
+    // You should set REACT_APP_API_BASE in Render's environment variables instead
+    console.warn('REACT_APP_API_BASE not set. Please set it in Render environment variables.');
+  }
+  
+  return 'http://localhost:5000'; // Fallback for local development
+}
+
+const API_BASE = getApiBase();
 
 export default function ContactSection() {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
@@ -42,29 +60,58 @@ export default function ContactSection() {
         message: form.message.trim()
       };
 
-      // Send to backend email route
-      const res = await fetch(`${API_BASE}/api/contact/send`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json' 
-        },
-        body: JSON.stringify(contactData),
-      });
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-      const data = await res.json().catch(() => ({}));
-      
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to send message');
+      try {
+        // Send to backend email route
+        const res = await fetch(`${API_BASE}/api/contact/send`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json' 
+          },
+          body: JSON.stringify(contactData),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        // Check if response is ok before trying to parse JSON
+        if (!res.ok) {
+          let errorMessage = 'Failed to send message';
+          try {
+            const errorData = await res.json();
+            errorMessage = errorData?.error || errorMessage;
+          } catch (parseError) {
+            // If JSON parsing fails, use status text
+            errorMessage = res.statusText || errorMessage;
+          }
+          throw new Error(errorMessage);
+        }
+
+        const data = await res.json();
+
+        // Success - reset form and show success message
+        setSubmitted(true);
+        setForm({ name: '', email: '', message: '' });
+
+        // Hide success message after 5 seconds
+        setTimeout(() => setSubmitted(false), 5000);
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Request timed out. Please check your connection and try again.');
+        }
+        // Handle network errors specifically
+        if (fetchError.message === 'Failed to fetch' || fetchError.name === 'TypeError') {
+          throw new Error(`Cannot connect to server. Please check that the backend is running at ${API_BASE}`);
+        }
+        throw fetchError;
       }
-
-      // Success - reset form and show success message
-      setSubmitted(true);
-      setForm({ name: '', email: '', message: '' });
-
-      // Hide success message after 5 seconds
-      setTimeout(() => setSubmitted(false), 5000);
     } catch (err) {
       console.error('Contact form send error:', err);
+      console.error('API_BASE:', API_BASE);
       setErrors({ 
         form: typeof err === 'string' 
           ? err 
