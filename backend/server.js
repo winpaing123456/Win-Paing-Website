@@ -10,7 +10,7 @@ import multer from 'multer';
 
 import pkg from 'pg';
 import dotenv from 'dotenv';
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -122,51 +122,24 @@ app.use('/uploads', (req, res, next) => {
     next();
 }, express.static('uploads'));
 
-// Configure nodemailer transporter
-// Support both EMAIL_USER/EMAIL_PASS and SMTP_USER/SMTP_PASS for compatibility
-const smtpUser = process.env.EMAIL_USER || process.env.SMTP_USER;
-const smtpPass = process.env.EMAIL_PASS || process.env.SMTP_PASS;
+// Configure Resend email service
+// Resend is a modern email API that works well with cloud platforms like Render
+const resendApiKey = process.env.RESEND_API_KEY;
 
-if (!smtpUser || !smtpPass) {
-    console.warn('⚠️  SMTP credentials not found in environment variables');
-    console.warn('   Make sure EMAIL_USER/EMAIL_PASS or SMTP_USER/SMTP_PASS are set in .env file');
+if (!resendApiKey) {
+    console.warn('⚠️  Resend API key not found in environment variables');
+    console.warn('   Make sure RESEND_API_KEY is set in .env file');
+    console.warn('   Get your API key from https://resend.com/api-keys');
+} else {
+    console.log('✅ Resend API key found');
 }
 
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
-    auth: {
-        user: smtpUser,
-        pass: smtpPass,
-    },
-    // Add connection timeout settings for better reliability
-    connectionTimeout: 30000, // 30 seconds to establish connection
-    greetingTimeout: 30000,   // 30 seconds for greeting
-    socketTimeout: 60000,     // 60 seconds for socket operations
-    // Enable debug for troubleshooting - enable in production to diagnose issues
-    debug: process.env.ENABLE_SMTP_DEBUG === 'true' || process.env.NODE_ENV === 'development',
-    logger: process.env.ENABLE_SMTP_DEBUG === 'true' || process.env.NODE_ENV === 'development',
-    // Additional options for better compatibility with cloud platforms
-    tls: {
-        // Do not fail on invalid certificates
-        rejectUnauthorized: false,
-        // Support older TLS versions if needed
-        minVersion: 'TLSv1.2'
-    },
-    // For port 587, require STARTTLS
-    requireTLS: parseInt(process.env.SMTP_PORT || '587') === 587,
-});
+const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
-// Verify transporter configuration
-transporter.verify((error, success) => {
-    if (error) {
-        console.error('❌ Email transporter error:', error.message);
-        console.warn('⚠️  Email functionality may not work. Please check your SMTP configuration in .env');
-    } else {
-        console.log('✅ Email transporter ready');
-    }
-});
+// Fallback: Support SMTP if RESEND_API_KEY is not set (for backward compatibility)
+const smtpUser = process.env.EMAIL_USER || process.env.SMTP_USER;
+const smtpPass = process.env.EMAIL_PASS || process.env.SMTP_PASS;
+const useResend = !!resendApiKey;
 
 // Set up API routes
 
@@ -339,23 +312,65 @@ app.post('/api/contact/send', async (req, res) => {
         return res.status(400).json({ error: 'Message must be at least 10 characters' });
     }
 
+    // Recipient email (where you want to receive contact form messages)
+    const recipientEmail = process.env.CONTACT_EMAIL || 'winpaingse25@gmail.com';
+    // Sender email (FROM_EMAIL for Resend - use onboarding@resend.dev for free tier, or your verified domain)
+    const fromEmail = process.env.FROM_EMAIL || 'onboarding@resend.dev';
+
     // Check if email configuration is set
-    if (!smtpUser || !smtpPass) {
+    if (useResend && !resendApiKey) {
+        console.error('Email configuration missing: RESEND_API_KEY must be set in .env');
+        return res.status(500).json({ error: 'Email service is not configured' });
+    } else if (!useResend && (!smtpUser || !smtpPass)) {
         console.error('Email configuration missing: EMAIL_USER/EMAIL_PASS or SMTP_USER/SMTP_PASS must be set in .env');
         return res.status(500).json({ error: 'Email service is not configured' });
     }
 
-    // Recipient email (where you want to receive contact form messages)
-    const recipientEmail = process.env.CONTACT_EMAIL || smtpUser;
-
     try {
-        // Email options
-        const mailOptions = {
-            from: `"${name}" <${smtpUser}>`,
-            replyTo: email,
-            to: recipientEmail,
-            subject: `Contact Form Message from ${name}`,
-            text: `New Contact Form Message
+        let emailResult;
+        
+        if (useResend) {
+            // Use Resend API (recommended for cloud platforms)
+            const emailText = `New Contact Form Message
+
+From: ${name}
+Email: ${email}
+Date: ${new Date().toLocaleString()}
+
+Message:
+${message}`;
+
+            emailResult = await resend.emails.send({
+                from: `Contact Form <${fromEmail}>`,
+                to: recipientEmail,
+                replyTo: email,
+                subject: `Contact Form Message from ${name}`,
+                text: emailText,
+            });
+            
+            console.log('✅ Contact form email sent via Resend:', emailResult.data?.id);
+        } else {
+            // Fallback to SMTP (nodemailer) if Resend is not configured
+            const nodemailer = await import('nodemailer');
+            const transporter = nodemailer.createTransport({
+                host: process.env.SMTP_HOST || 'smtp.gmail.com',
+                port: parseInt(process.env.SMTP_PORT || '587'),
+                secure: process.env.SMTP_SECURE === 'true',
+                auth: {
+                    user: smtpUser,
+                    pass: smtpPass,
+                },
+                connectionTimeout: 30000,
+                greetingTimeout: 30000,
+                socketTimeout: 60000,
+            });
+
+            const mailOptions = {
+                from: `"${name}" <${smtpUser}>`,
+                replyTo: email,
+                to: recipientEmail,
+                subject: `Contact Form Message from ${name}`,
+                text: `New Contact Form Message
 
 From: ${name}
 Email: ${email}
@@ -363,17 +378,16 @@ Date: ${new Date().toLocaleString()}
 
 Message:
 ${message}`
-        };
+            };
 
-        // Send email with timeout (45 seconds - Gmail can be slow)
-        const emailPromise = transporter.sendMail(mailOptions);
-        const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Email sending timed out')), 45000)
-        );
-        
-        const info = await Promise.race([emailPromise, timeoutPromise]);
-        
-        console.log('✅ Contact form email sent:', info.messageId);
+            const emailPromise = transporter.sendMail(mailOptions);
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Email sending timed out')), 45000)
+            );
+            
+            emailResult = await Promise.race([emailPromise, timeoutPromise]);
+            console.log('✅ Contact form email sent via SMTP:', emailResult.messageId);
+        }
 
         // Save contact form submission to database (non-blocking)
         pool.query(
@@ -391,7 +405,7 @@ ${message}`
         res.json({ 
             success: true, 
             message: 'Message sent successfully',
-            messageId: info.messageId
+            messageId: useResend ? emailResult.data?.id : emailResult.messageId
         });
     } catch (err) {
         console.error('Error sending contact form email:', err);
@@ -415,14 +429,21 @@ ${message}`
             errorMessage = 'Email authentication failed. Please check SMTP credentials.';
         } else if (err.code === 'ECONNECTION' || err.code === 'ETIMEDOUT' || err.code === 'ETIMEOUT') {
             // More detailed error for connection issues
-            console.error('SMTP Connection failed. Common causes:');
-            console.error('  1. Gmail may be blocking connections from cloud providers');
-            console.error('  2. Render may be blocking outbound SMTP connections');
-            console.error('  3. Firewall or network restrictions');
-            console.error('  4. Incorrect SMTP_HOST, SMTP_PORT, or SMTP_SECURE settings');
-            errorMessage = `Cannot connect to email server (${err.code}). This may be due to network restrictions. Please try again or contact support.`;
+            if (useResend) {
+                errorMessage = `Resend API error: ${err.message || 'Failed to send email'}`;
+            } else {
+                console.error('SMTP Connection failed. Common causes:');
+                console.error('  1. Gmail may be blocking connections from cloud providers');
+                console.error('  2. Render may be blocking outbound SMTP connections');
+                console.error('  3. Firewall or network restrictions');
+                console.error('  4. Incorrect SMTP_HOST, SMTP_PORT, or SMTP_SECURE settings');
+                console.error('  5. Consider using Resend API instead (set RESEND_API_KEY)');
+                errorMessage = `Cannot connect to email server (${err.code}). This may be due to network restrictions. Please try again or contact support.`;
+            }
         } else if (err.code === 'ESOCKET' || err.code === 'EENOTFOUND') {
-            errorMessage = 'Cannot resolve email server address. Please check SMTP_HOST configuration.';
+            errorMessage = useResend 
+                ? `Resend API error: ${err.message}` 
+                : 'Cannot resolve email server address. Please check SMTP_HOST configuration.';
         } else if (err.response) {
             errorMessage = `Email service error: ${err.response}`;
         } else if (err.message) {
