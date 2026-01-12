@@ -23,7 +23,7 @@ const { Pool } = pkg;
 const pool = new Pool({
     user: process.env.PGUSER || 'postgres',
     host: process.env.PGHOST || 'localhost',
-    database: process.env.PGDATABASE || 'Personal Web',
+    database: process.env.PGDATABASE || postgres_db,
     password: process.env.PGPASSWORD || 'wipaing123',
     port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
 });
