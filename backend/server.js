@@ -24,11 +24,20 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 const app = express();
 
 const { Pool } = pkg;
+
+// Check if using Neon or other cloud database (requires SSL)
+const isCloudDB = process.env.DATABASE_URL?.includes('neon.tech') || 
+                  process.env.DATABASE_URL?.includes('sslmode=require');
+
+// Check if connecting to Docker internal postgres (no SSL needed)
+const isDockerPostgres = process.env.DATABASE_URL?.includes('@postgres:') || 
+                         process.env.DATABASE_URL?.includes('@postgres_db:');
+
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: 
-        process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
-    
+    ssl: isCloudDB 
+        ? { rejectUnauthorized: false }  // Neon/cloud databases require SSL
+        : (isDockerPostgres ? false : (process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false)),
 });
 
 
